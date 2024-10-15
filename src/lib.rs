@@ -1,3 +1,4 @@
+pub mod algebra;
 pub mod data_structures;
 pub mod generator;
 pub mod prover;
