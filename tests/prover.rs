@@ -10,7 +10,7 @@ mod SXDH_prover_tests {
     use ark_std::str::FromStr;
     use ark_std::{test_rng, UniformRand, Zero};
 
-    use groth_sahai::data_structures::*;
+    use groth_sahai::algebra::*;
     use groth_sahai::prover::*;
     use groth_sahai::statement::*;
     use groth_sahai::verifier::Verifiable;
@@ -45,11 +45,11 @@ mod SXDH_prover_tests {
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         ];
         // Gamma = [ 5, 0 ] (i.e. only e(X_1, Y_1)^5 term)
-        let gamma: Matrix<Fr> = vec![vec![Fr::from_str("5").unwrap()], vec![Fr::zero()]];
+        let gamma: Matrix<Fr> = Matrix::new(&[[Fr::from_str("5").unwrap()], [Fr::zero()]]);
         // Target -> all together (n.b. e(X_1, Y_1)^5 = e(X_1, 5 Y_1) = e(5 X_1, Y_1) by the properties of non-degenerate bilinear maps)
         let target: GT = F::pairing(xvars[1], b_consts[1])
             + F::pairing(a_consts[0], yvars[0])
-            + F::pairing(xvars[0], yvars[0].mul(gamma[0][0]).into_affine());
+            + F::pairing(xvars[0], yvars[0].mul(gamma[(0, 0)]).into_affine());
         let equ: PPE<F> = PPE::<F> {
             a_consts,
             b_consts,
@@ -82,11 +82,11 @@ mod SXDH_prover_tests {
         // B = [ 0, c_2 ] (i.e. only c_2 * X_2 term in equation)
         let b_consts: Vec<Fr> = vec![Fr::zero(), Fr::rand(&mut rng)];
         // Gamma = [ 5, 0 ] (i.e. only (y_1 * X_1)*5 term)
-        let gamma: Matrix<Fr> = vec![vec![Fr::from_str("5").unwrap()], vec![Fr::zero()]];
+        let gamma: Matrix<Fr> = Matrix::new(&[[Fr::from_str("5").unwrap()], [Fr::zero()]]);
         // Target -> all together
         let target: G1Affine = (xvars[1].mul(b_consts[1])
             + a_consts[0].mul(scalar_yvars[0])
-            + xvars[0].mul(scalar_yvars[0] * gamma[0][0]))
+            + xvars[0].mul(scalar_yvars[0] * gamma[(0, 0)]))
         .into_affine();
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts,
@@ -120,11 +120,11 @@ mod SXDH_prover_tests {
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         ];
         // Gamma = [ 5, 0 ] (i.e. only (x_1 * Y_1)*5 term)
-        let gamma: Matrix<Fr> = vec![vec![Fr::from_str("5").unwrap()], vec![Fr::zero()]];
+        let gamma: Matrix<Fr> = Matrix::new(&[[Fr::from_str("5").unwrap()], [Fr::zero()]]);
         // Target -> all together
         let target: G2Affine = (b_consts[1].mul(scalar_xvars[1])
             + yvars[0].mul(a_consts[0])
-            + yvars[0].mul(scalar_xvars[0] * gamma[0][0]))
+            + yvars[0].mul(scalar_xvars[0] * gamma[(0, 0)]))
         .into_affine();
         let equ: MSMEG2<F> = MSMEG2::<F> {
             a_consts,
@@ -155,11 +155,11 @@ mod SXDH_prover_tests {
         // B = [ 0, c_2 ] (i.e. only c_2 * x2 term in equation)
         let b_consts: Vec<Fr> = vec![Fr::zero(), Fr::rand(&mut rng)];
         // Gamma = [ 5, 0 ] (i.e. only (x_1 * y_1)*5 term)
-        let gamma: Matrix<Fr> = vec![vec![Fr::from_str("5").unwrap()], vec![Fr::zero()]];
+        let gamma: Matrix<Fr> = Matrix::new(&[[Fr::from_str("5").unwrap()], [Fr::zero()]]);
         // Target -> all together
         let target: Fr = b_consts[1] * scalar_xvars[1]
             + scalar_yvars[0] * a_consts[0]
-            + scalar_yvars[0] * scalar_xvars[0] * gamma[0][0];
+            + scalar_yvars[0] * scalar_xvars[0] * gamma[(0, 0)];
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts,
             b_consts,

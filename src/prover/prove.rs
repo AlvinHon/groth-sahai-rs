@@ -3,25 +3,26 @@
 //! Abstractly, a proof for an equation for the SXDH instantiation of Groth-Sahai consists of the following values,
 //! with respect to a pre-defined bilinear group `(A1, A2, AT)`:
 //!
-//! - `π`: 1-2 elements in [`B2`](crate::data_structures::Com2) (equiv. 2-4 elements in [`G2`](ark_ec::Pairing::G2Affine))
+//! - `π`: 1-2 elements in [`B2`](crate::algebra::Com2) (equiv. 2-4 elements in [`G2`](ark_ec::pairing::Pairing::G2Affine))
 //!     which prove about the satisfiability of `A2` variables in the equation, and
-//! - `θ`: 1-2 elements in [`B1`](crate::data_structures::Com1) (equiv. 2-4 elements in [`G1`](ark_ec::Pairing::G1Affine))
+//! - `θ`: 1-2 elements in [`B1`](crate::algebra::Com1) (equiv. 2-4 elements in [`G1`](ark_ec::pairing::Pairing::G1Affine))
 //!     which prove about the satisfiability of `A1` variables in the equation
 //!
-//! Computing these proofs primarily involves matrix multiplication in the [scalar field](ark_ec::Pairing::Fr) and in `B1` and `B2`.
+//! Computing these proofs primarily involves matrix multiplication in the [scalar field](ark_ec::pairing::Pairing::ScalarField)
+//! and in `B1` and `B2`.
 //!
 //! See the [`statement`](crate::statement) module for more details about the structure of the equations being proven about.
 
 use ark_ec::pairing::Pairing;
 use ark_ec::pairing::PairingOutput;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{rand::Rng, UniformRand};
+use ark_std::rand::Rng;
 
 use super::commit::{
     batch_commit_G1, batch_commit_G2, batch_commit_scalar_to_B1, batch_commit_scalar_to_B2,
     Commit1, Commit2,
 };
-use crate::data_structures::{col_vec_to_vec, vec_to_col_vec, Com1, Com2, Mat, Matrix, B1, B2};
+use crate::algebra::{col_vec_to_vec, vec_to_col_vec, Com, Com1, Com2, Mat, Matrix};
 use crate::generator::CRS;
 use crate::statement::{EquType, QuadEqu, MSMEG1, MSMEG2, PPE};
 
@@ -101,63 +102,57 @@ impl<E: Pairing> Provable<E, E::G1Affine, E::G2Affine, PairingOutput<E>> for PPE
     where
         CR: Rng,
     {
-        // Gamma is an (m x n) matrix with m x variables and n y variables
-        // x's commit randomness (i.e. R) is a (m x 2) matrix
-        assert_eq!(xvars.len(), xcoms.rand.len());
-        assert_eq!(self.gamma.len(), xcoms.rand.len());
-        assert_eq!(xcoms.rand[0].len(), 2);
         let _m = xvars.len();
-        // y's commit randomness (i.e. S) is a (n x 2) matrix
-        assert_eq!(yvars.len(), ycoms.rand.len());
-        assert_eq!(self.gamma[0].len(), ycoms.rand.len());
-        assert_eq!(ycoms.rand[0].len(), 2);
         let _n = yvars.len();
 
-        let is_parallel = true;
+        // Gamma is an (m x n) matrix with m x variables and n y variables
+        // x's commit randomness (i.e. R) is a (m x 2) matrix
+        assert_eq!(self.gamma.dim(), (_m, _n));
+        assert_eq!(xcoms.rand.dim(), (_m, 2));
+
+        // y's commit randomness (i.e. S) is a (n x 2) matrix
+        assert_eq!(ycoms.rand.dim(), (_n, 2));
 
         // (2 x m) field matrix R^T, in GS parlance
         let x_rand_trans = xcoms.rand.transpose();
         // (2 x n) field matrix S^T, in GS parlance
         let y_rand_trans = ycoms.rand.transpose();
         // (2 x 2) field matrix T, in GS parlance
-        let pf_rand: Matrix<E::ScalarField> = vec![
-            vec![E::ScalarField::rand(rng), E::ScalarField::rand(rng)],
-            vec![E::ScalarField::rand(rng), E::ScalarField::rand(rng)],
-        ];
+        let pf_rand = Matrix::rand(rng, 2, 2);
 
         // (2 x 1) Com2 matrix
-        let x_rand_lin_b = vec_to_col_vec(&Com2::<E>::batch_linear_map(&self.b_consts))
-            .left_mul(&x_rand_trans, is_parallel);
+        let x_rand_lin_b =
+            vec_to_col_vec(&Com::<E::G2>::batch_linear_map(&self.b_consts)).left_mul(&x_rand_trans);
 
         // (2 x n) field matrix
-        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma, is_parallel);
+        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma);
         // (2 x 1) Com2 matrix
         let x_rand_stmt_lin_y =
-            vec_to_col_vec(&Com2::<E>::batch_linear_map(yvars)).left_mul(&x_rand_stmt, is_parallel);
+            vec_to_col_vec(&Com2::<E>::batch_linear_map(yvars)).left_mul(&x_rand_stmt);
 
         // (2 x 2) field matrix
         let pf_rand_stmt = x_rand_trans
-            .right_mul(&self.gamma, is_parallel)
-            .right_mul(&ycoms.rand, is_parallel)
+            .right_mul(&self.gamma)
+            .right_mul(&ycoms.rand)
             .add(&pf_rand.transpose().neg());
         // (2 x 1) Com2 matrix
-        let pf_rand_stmt_com2 = vec_to_col_vec(&crs.v).left_mul(&pf_rand_stmt, is_parallel);
+        let pf_rand_stmt_com2 = vec_to_col_vec(&crs.v).left_mul(&pf_rand_stmt);
 
         let pi = col_vec_to_vec(&x_rand_lin_b.add(&x_rand_stmt_lin_y).add(&pf_rand_stmt_com2));
         assert_eq!(pi.len(), 2);
 
         // (2 x 1) Com1 matrix
-        let y_rand_lin_a = vec_to_col_vec(&Com1::<E>::batch_linear_map(&self.a_consts))
-            .left_mul(&y_rand_trans, is_parallel);
+        let y_rand_lin_a =
+            vec_to_col_vec(&Com1::<E>::batch_linear_map(&self.a_consts)).left_mul(&y_rand_trans);
 
         // (2 x m) field matrix
-        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose(), is_parallel);
+        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose());
         // (2 x 1) Com1 matrix
         let y_rand_stmt_lin_x =
-            vec_to_col_vec(&Com1::<E>::batch_linear_map(xvars)).left_mul(&y_rand_stmt, is_parallel);
+            vec_to_col_vec(&Com1::<E>::batch_linear_map(xvars)).left_mul(&y_rand_stmt);
 
         // (2 x 1) Com1 matrix
-        let pf_rand_com1 = vec_to_col_vec(&crs.u).left_mul(&pf_rand, is_parallel);
+        let pf_rand_com1 = vec_to_col_vec(&crs.u).left_mul(&pf_rand);
 
         let theta = col_vec_to_vec(&y_rand_lin_a.add(&y_rand_stmt_lin_x).add(&pf_rand_com1));
         assert_eq!(theta.len(), 2);
@@ -204,63 +199,60 @@ impl<E: Pairing> Provable<E, E::G1Affine, E::ScalarField, E::G1Affine> for MSMEG
     where
         CR: Rng,
     {
-        // Gamma is an (m x n') matrix with m x variables and n' scalar y variables
-        // x's commit randomness (i.e. R) is a (m x 2) matrix
-        assert_eq!(xvars.len(), xcoms.rand.len());
-        assert_eq!(self.gamma.len(), xcoms.rand.len());
-        assert_eq!(xcoms.rand[0].len(), 2);
         let _m = xvars.len();
-        // scalar y's commit randomness (i.e. s) is a (n' x 1) matrix (i.e. column vector)
-        assert_eq!(scalar_yvars.len(), scalar_ycoms.rand.len());
-        assert_eq!(self.gamma[0].len(), scalar_ycoms.rand.len());
-        assert_eq!(scalar_ycoms.rand[0].len(), 1);
         let _n_prime = scalar_yvars.len();
 
-        let is_parallel = true;
+        // Gamma is an (m x n') matrix with m x variables and n' scalar y variables
+        // x's commit randomness (i.e. R) is a (m x 2) matrix
+        assert_eq!(self.gamma.dim(), (_m, _n_prime));
+        assert_eq!(xcoms.rand.dim(), (_m, 2));
+        // scalar y's commit randomness (i.e. s) is a (n' x 1) matrix (i.e. column vector)
+        assert_eq!(scalar_ycoms.rand.dim(), (_n_prime, 1));
 
         // (2 x m) field matrix R^T, in GS parlance
         let x_rand_trans = xcoms.rand.transpose();
         // (1 x n') field matrix s^T, in GS parlance
         let y_rand_trans = scalar_ycoms.rand.transpose();
         // (1 x 2) field matrix T, in GS parlance
-        let pf_rand: Matrix<E::ScalarField> =
-            vec![vec![E::ScalarField::rand(rng), E::ScalarField::rand(rng)]];
+        let pf_rand: Matrix<E::ScalarField> = Matrix::rand(rng, 1, 2);
 
         // (2 x 1) Com2 matrix
-        let x_rand_lin_b = vec_to_col_vec(&Com2::<E>::batch_scalar_linear_map(&self.b_consts, crs))
-            .left_mul(&x_rand_trans, is_parallel);
+
+        let x_rand_lin_b =
+            vec_to_col_vec(&crs.v[1].batch_scalar_linear_map(&self.b_consts, &crs.g2_gen))
+                .left_mul(&x_rand_trans);
 
         // (2 x n) field matrix
-        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma, is_parallel);
+        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma);
         // (2 x 1) Com2 matrix
         let x_rand_stmt_lin_y =
-            vec_to_col_vec(&Com2::<E>::batch_scalar_linear_map(scalar_yvars, crs))
-                .left_mul(&x_rand_stmt, is_parallel);
+            vec_to_col_vec(&crs.v[1].batch_scalar_linear_map(scalar_yvars, &crs.g2_gen))
+                .left_mul(&x_rand_stmt);
 
         // (2 x 1) field matrix
         let pf_rand_stmt = x_rand_trans
-            .right_mul(&self.gamma, is_parallel)
-            .right_mul(&scalar_ycoms.rand, is_parallel)
+            .right_mul(&self.gamma)
+            .right_mul(&scalar_ycoms.rand)
             .add(&pf_rand.transpose().neg());
         // (2 x 1) Com2 matrix
-        let v1: Matrix<Com2<E>> = vec![vec![crs.v[0]]];
-        let pf_rand_stmt_com2 = v1.left_mul(&pf_rand_stmt, is_parallel);
+        let v1: Matrix<Com2<E>> = Matrix::new(&[[crs.v[0]]]);
+        let pf_rand_stmt_com2 = v1.left_mul(&pf_rand_stmt);
 
         let pi = col_vec_to_vec(&x_rand_lin_b.add(&x_rand_stmt_lin_y).add(&pf_rand_stmt_com2));
         assert_eq!(pi.len(), 2);
 
         // (1 x 1) Com1 matrix
-        let y_rand_lin_a = vec_to_col_vec(&Com1::<E>::batch_linear_map(&self.a_consts))
-            .left_mul(&y_rand_trans, is_parallel);
+        let y_rand_lin_a =
+            vec_to_col_vec(&Com1::<E>::batch_linear_map(&self.a_consts)).left_mul(&y_rand_trans);
 
         // (1 x m) field matrix
-        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose(), is_parallel);
+        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose());
         // (1 x 1) Com1 matrix
         let y_rand_stmt_lin_x =
-            vec_to_col_vec(&Com1::<E>::batch_linear_map(xvars)).left_mul(&y_rand_stmt, is_parallel);
+            vec_to_col_vec(&Com1::<E>::batch_linear_map(xvars)).left_mul(&y_rand_stmt);
 
         // (1 x 1) Com1 matrix
-        let pf_rand_com1 = vec_to_col_vec(&crs.u).left_mul(&pf_rand, is_parallel);
+        let pf_rand_com1 = vec_to_col_vec(&crs.u).left_mul(&pf_rand);
 
         let theta = col_vec_to_vec(&y_rand_lin_a.add(&y_rand_stmt_lin_x).add(&pf_rand_com1));
         assert_eq!(theta.len(), 1);
@@ -307,65 +299,61 @@ impl<E: Pairing> Provable<E, E::ScalarField, E::G2Affine, E::G2Affine> for MSMEG
     where
         CR: Rng,
     {
-        // Gamma is an (m' x n) matrix with m' x variables and n y variables
-        // x's commit randomness (i.e. r) is a (m' x 1) matrix (i.e. column vector)
-        assert_eq!(scalar_xvars.len(), scalar_xcoms.rand.len());
-        assert_eq!(self.gamma.len(), scalar_xcoms.rand.len());
-        assert_eq!(scalar_xcoms.rand[0].len(), 1);
         let _m_prime = scalar_xvars.len();
-        // y's commit randomness (i.e. S) is a (n x 2) matrix
-        assert_eq!(yvars.len(), ycoms.rand.len());
-        assert_eq!(self.gamma[0].len(), ycoms.rand.len());
-        assert_eq!(ycoms.rand[0].len(), 2);
         let _n = yvars.len();
 
-        let is_parallel = true;
+        // Gamma is an (m' x n) matrix with m' x variables and n y variables
+        // x's commit randomness (i.e. r) is a (m' x 1) matrix (i.e. column vector)
+        assert_eq!(self.gamma.dim(), (_m_prime, _n));
+        assert_eq!(scalar_xcoms.rand.dim(), (_m_prime, 1));
+
+        // y's commit randomness (i.e. S) is a (n x 2) matrix
+        assert_eq!(ycoms.rand.dim(), (_n, 2));
 
         // (1 x m') field matrix r^T, in GS parlance
         let x_rand_trans = scalar_xcoms.rand.transpose();
         // (2 x n) field matrix S^T, in GS parlance
         let y_rand_trans = ycoms.rand.transpose();
         // (2 x 1) field matrix T, in GS parlance
-        let pf_rand: Matrix<E::ScalarField> = vec![
-            vec![E::ScalarField::rand(rng)],
-            vec![E::ScalarField::rand(rng)],
-        ];
+        let pf_rand: Matrix<E::ScalarField> = Matrix::rand(rng, 2, 1);
 
         // (1 x 1) Com2 matrix
-        let x_rand_lin_b = vec_to_col_vec(&Com2::<E>::batch_linear_map(&self.b_consts))
-            .left_mul(&x_rand_trans, is_parallel);
+        let x_rand_lin_b =
+            vec_to_col_vec(&Com2::<E>::batch_linear_map(&self.b_consts)).left_mul(&x_rand_trans);
 
         // (1 x n) field matrix
-        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma, is_parallel);
+
+        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma);
         // (1 x 1) Com2 matrix
         let x_rand_stmt_lin_y =
-            vec_to_col_vec(&Com2::<E>::batch_linear_map(yvars)).left_mul(&x_rand_stmt, is_parallel);
+            vec_to_col_vec(&Com2::<E>::batch_linear_map(yvars)).left_mul(&x_rand_stmt);
 
         // (1 x 2) field matrix
         let pf_rand_stmt = x_rand_trans
-            .right_mul(&self.gamma, is_parallel)
-            .right_mul(&ycoms.rand, is_parallel)
+            .right_mul(&self.gamma)
+            .right_mul(&ycoms.rand)
             .add(&pf_rand.transpose().neg());
         // (1 x 1) Com2 matrix
-        let pf_rand_stmt_com2 = vec_to_col_vec(&crs.v).left_mul(&pf_rand_stmt, is_parallel);
+        let pf_rand_stmt_com2 = vec_to_col_vec(&crs.v).left_mul(&pf_rand_stmt);
 
         let pi = col_vec_to_vec(&x_rand_lin_b.add(&x_rand_stmt_lin_y).add(&pf_rand_stmt_com2));
         assert_eq!(pi.len(), 1);
 
         // (2 x 1) Com1 matrix
-        let y_rand_lin_a = vec_to_col_vec(&Com1::<E>::batch_scalar_linear_map(&self.a_consts, crs))
-            .left_mul(&y_rand_trans, is_parallel);
+        let y_rand_lin_a =
+            vec_to_col_vec(&crs.u[1].batch_scalar_linear_map(&self.a_consts, &crs.g1_gen))
+                .left_mul(&y_rand_trans);
 
         // (2 x m') field matrix
-        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose(), is_parallel);
+        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose());
         // (2 x 1) Com1 matrix
         let y_rand_stmt_lin_x =
-            vec_to_col_vec(&Com1::<E>::batch_scalar_linear_map(scalar_xvars, crs))
-                .left_mul(&y_rand_stmt, is_parallel);
+            vec_to_col_vec(&crs.u[1].batch_scalar_linear_map(scalar_xvars, &crs.g1_gen))
+                .left_mul(&y_rand_stmt);
 
         // (2 x 1) Com1 matrix
-        let u1: Matrix<Com1<E>> = vec![vec![crs.u[0]]];
-        let pf_rand_com1 = u1.left_mul(&pf_rand, is_parallel);
+        let u1: Matrix<Com1<E>> = Matrix::new(&[[crs.u[0]]]);
+        let pf_rand_com1 = u1.left_mul(&pf_rand);
 
         let theta = col_vec_to_vec(&y_rand_lin_a.add(&y_rand_stmt_lin_x).add(&pf_rand_com1));
         assert_eq!(theta.len(), 2);
@@ -418,63 +406,62 @@ impl<E: Pairing> Provable<E, E::ScalarField, E::ScalarField, E::ScalarField> for
     where
         CR: Rng,
     {
-        // Gamma is an (m' x n') matrix with m' x variables and n' y variables
-        // x's commit randomness (i.e. r) is a (m' x 1) matrix (i.e. column vector)
-        assert_eq!(scalar_xvars.len(), scalar_xcoms.rand.len());
-        assert_eq!(self.gamma.len(), scalar_xcoms.rand.len());
-        assert_eq!(scalar_xcoms.rand[0].len(), 1);
         let _m_prime = scalar_xvars.len();
-        // y's commit randomness (i.e. s) is a (n' x 1) matrix (i.e. column vector)
-        assert_eq!(scalar_yvars.len(), scalar_ycoms.rand.len());
-        assert_eq!(self.gamma[0].len(), scalar_ycoms.rand.len());
-        assert_eq!(scalar_ycoms.rand[0].len(), 1);
         let _n_prime = scalar_yvars.len();
 
-        let is_parallel = true;
+        // Gamma is an (m' x n') matrix with m' x variables and n' y variables
+        // x's commit randomness (i.e. r) is a (m' x 1) matrix (i.e. column vector)
+        assert_eq!(self.gamma.dim(), (_m_prime, _n_prime));
+        assert_eq!(scalar_xcoms.rand.dim(), (_m_prime, 1));
+
+        // y's commit randomness (i.e. s) is a (n' x 1) matrix (i.e. column vector)
+        assert_eq!(scalar_ycoms.rand.dim(), (_n_prime, 1));
 
         // (1 x m') field matrix r^T, in GS parlance
         let x_rand_trans = scalar_xcoms.rand.transpose();
         // (1 x n') field matrix s^T, in GS parlance
         let y_rand_trans = scalar_ycoms.rand.transpose();
         // field element T, in GS parlance
-        let pf_rand: Matrix<E::ScalarField> = vec![vec![E::ScalarField::rand(rng)]];
+        let pf_rand: Matrix<E::ScalarField> = Matrix::rand(rng, 1, 1);
 
-        let x_rand_lin_b = vec_to_col_vec(&Com2::<E>::batch_scalar_linear_map(&self.b_consts, crs))
-            .left_mul(&x_rand_trans, is_parallel);
+        let x_rand_lin_b =
+            vec_to_col_vec(&crs.v[1].batch_scalar_linear_map(&self.b_consts, &crs.g2_gen))
+                .left_mul(&x_rand_trans);
 
         // (1 x n') field matrix
-        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma, is_parallel);
+        let x_rand_stmt = x_rand_trans.right_mul(&self.gamma);
         // (1 x 1) Com2 matrix
         let x_rand_stmt_lin_y =
-            vec_to_col_vec(&Com2::<E>::batch_scalar_linear_map(scalar_yvars, crs))
-                .left_mul(&x_rand_stmt, is_parallel);
+            vec_to_col_vec(&crs.v[1].batch_scalar_linear_map(scalar_yvars, &crs.g2_gen))
+                .left_mul(&x_rand_stmt);
 
         // (1 x 2) field matrix
         let pf_rand_stmt = x_rand_trans
-            .right_mul(&self.gamma, is_parallel)
-            .right_mul(&scalar_ycoms.rand, is_parallel)
+            .right_mul(&self.gamma)
+            .right_mul(&scalar_ycoms.rand)
             .add(&pf_rand.transpose().neg());
-        let v1: Matrix<Com2<E>> = vec![vec![crs.v[0]]];
+        let v1: Matrix<Com2<E>> = Matrix::new(&[[crs.v[0]]]);
         // (1 x 1) Com2 matrix
-        let pf_rand_stmt_com2 = v1.left_mul(&pf_rand_stmt, is_parallel);
+        let pf_rand_stmt_com2 = v1.left_mul(&pf_rand_stmt);
 
         let pi = col_vec_to_vec(&x_rand_lin_b.add(&x_rand_stmt_lin_y).add(&pf_rand_stmt_com2));
         assert_eq!(pi.len(), 1);
 
         // (1 x 1) Com1 matrix
-        let y_rand_lin_a = vec_to_col_vec(&Com1::<E>::batch_scalar_linear_map(&self.a_consts, crs))
-            .left_mul(&y_rand_trans, is_parallel);
+        let y_rand_lin_a =
+            vec_to_col_vec(&crs.u[1].batch_scalar_linear_map(&self.a_consts, &crs.g1_gen))
+                .left_mul(&y_rand_trans);
 
         // (1 x m') field matrix
-        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose(), is_parallel);
+        let y_rand_stmt = y_rand_trans.right_mul(&self.gamma.transpose());
         // (1 x 1) Com1 matrix
         let y_rand_stmt_lin_x =
-            vec_to_col_vec(&Com1::<E>::batch_scalar_linear_map(scalar_xvars, crs))
-                .left_mul(&y_rand_stmt, is_parallel);
+            vec_to_col_vec(&crs.u[1].batch_scalar_linear_map(scalar_xvars, &crs.g1_gen))
+                .left_mul(&y_rand_stmt);
 
         // (1 x 1) Com1 matrix
-        let u1: Matrix<Com1<E>> = vec![vec![crs.u[0]]];
-        let pf_rand_com1 = u1.left_mul(&pf_rand, is_parallel);
+        let u1: Matrix<Com1<E>> = Matrix::new(&[[crs.u[0]]]);
+        let pf_rand_com1 = u1.left_mul(&pf_rand);
 
         let theta = col_vec_to_vec(&y_rand_lin_a.add(&y_rand_stmt_lin_x).add(&pf_rand_com1));
         assert_eq!(theta.len(), 1);
@@ -526,7 +513,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: GT::rand(&mut rng),
         };
         let proof: EquProof<F> = equ.prove(&xvars, &yvars, &xcoms, &ycoms, &crs, &mut rng);
@@ -552,7 +539,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: GT::rand(&mut rng),
         };
 
@@ -607,7 +594,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: GT::rand(&mut rng),
         };
         let proof: EquProof<F> = equ.prove(&xvars, &yvars, &xcoms, &ycoms, &crs, &mut rng);
@@ -640,7 +627,7 @@ mod tests {
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
         let proof: EquProof<F> =
@@ -664,7 +651,7 @@ mod tests {
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -717,7 +704,7 @@ mod tests {
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
         let proof: EquProof<F> =
@@ -751,7 +738,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
         let proof: EquProof<F> =
@@ -775,7 +762,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -828,7 +815,7 @@ mod tests {
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
                 crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             ],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
         let proof: EquProof<F> =
@@ -857,7 +844,7 @@ mod tests {
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: Fr::rand(&mut rng),
         };
 
@@ -888,7 +875,7 @@ mod tests {
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: Fr::rand(&mut rng),
         };
 
@@ -942,7 +929,7 @@ mod tests {
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+            gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
             target: Fr::rand(&mut rng),
         };
 

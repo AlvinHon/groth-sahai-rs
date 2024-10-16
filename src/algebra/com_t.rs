@@ -1,5 +1,8 @@
-use ark_ec::pairing::{Pairing, PairingOutput};
-use ark_std::{UniformRand, Zero};
+use ark_ec::{
+    pairing::{Pairing, PairingOutput},
+    AffineRepr,
+};
+use ark_std::{One, UniformRand, Zero};
 use std::{
     iter::Sum,
     ops::{Add, AddAssign, Neg, Sub, SubAssign},
@@ -7,7 +10,7 @@ use std::{
 
 use super::{matrix::Matrix, Com1, Com2};
 
-/// Target [`BT`](crate::data_structures::BT) for the commitment group in the SXDH instantiation.
+/// Target `BT` for the commitment group in the SXDH instantiation.
 #[derive(Copy, Clone, Debug)]
 pub struct ComT<E: Pairing>(
     pub PairingOutput<E>,
@@ -95,7 +98,6 @@ impl<E: Pairing> SubAssign<ComT<E>> for ComT<E> {
 }
 impl<E: Pairing> From<Matrix<PairingOutput<E>>> for ComT<E> {
     fn from(mat: Matrix<PairingOutput<E>>) -> Self {
-        let mat = mat.as_ref();
         Self(mat[(0, 0)], mat[(0, 1)], mat[(1, 0)], mat[(1, 1)])
     }
 }
@@ -143,38 +145,47 @@ impl<E: Pairing> ComT<E> {
         Matrix::<PairingOutput<E>>::from(ndarray::arr2(&[[self.0, self.1], [self.2, self.3]]))
     }
 
-    // #[allow(non_snake_case)]
-    // #[inline]
-    // pub fn linear_map_PPE(z: &PairingOutput<E>) -> Self {
-    //     Self(
-    //         PairingOutput::zero(),
-    //         PairingOutput::zero(),
-    //         PairingOutput::zero(),
-    //         *z,
-    //     )
-    // }
+    #[allow(non_snake_case)]
+    #[inline]
+    pub fn linear_map_PPE(z: &PairingOutput<E>) -> Self {
+        Self(
+            PairingOutput::zero(),
+            PairingOutput::zero(),
+            PairingOutput::zero(),
+            *z,
+        )
+    }
 
-    // #[inline]
-    // fn linear_map_MSMEG1(z: &E::G1Affine, key: &CRS<E>) -> Self {
-    //     Self::pairing(
-    //         Com1::<E>::linear_map(z),
-    //         Com2::<E>::scalar_linear_map(&E::ScalarField::one(), key),
-    //     )
-    // }
+    // TODO - Consider moving these methods to CRS
 
-    // #[inline]
-    // fn linear_map_MSMEG2(z: &E::G2Affine, key: &CRS<E>) -> Self {
-    //     Self::pairing(
-    //         Com1::<E>::scalar_linear_map(&E::ScalarField::one(), key),
-    //         Com2::<E>::linear_map(z),
-    //     )
-    // }
+    #[allow(non_snake_case)]
+    #[inline]
+    pub fn linear_map_MSMEG1(z: &E::G1Affine, com2: &Com2<E>, p2: &E::G2Affine) -> Self {
+        let one = <E::G2Affine as AffineRepr>::ScalarField::one();
+        Self::pairing(Com1::<E>::linear_map(z), com2.scalar_linear_map(&one, p2))
+    }
 
-    // #[inline]
-    // fn linear_map_quad(z: &E::ScalarField, key: &CRS<E>) -> Self {
-    //     Self::pairing(
-    //         Com1::<E>::scalar_linear_map(&E::ScalarField::one(), key),
-    //         Com2::<E>::scalar_linear_map(&E::ScalarField::one(), key).scalar_mul(z),
-    //     )
-    // }
+    #[allow(non_snake_case)]
+    #[inline]
+    pub fn linear_map_MSMEG2(z: &E::G2Affine, com1: &Com1<E>, p1: &E::G1Affine) -> Self {
+        let one = <E::G1Affine as AffineRepr>::ScalarField::one();
+        Self::pairing(com1.scalar_linear_map(&one, p1), Com2::<E>::linear_map(z))
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
+    pub fn linear_map_quad(
+        z: &E::ScalarField,
+        com1: &Com1<E>,
+        p1: &E::G1Affine,
+        com2: &Com2<E>,
+        p2: &E::G2Affine,
+    ) -> Self {
+        let one1 = <E::G1Affine as AffineRepr>::ScalarField::one();
+        let one2 = <E::G2Affine as AffineRepr>::ScalarField::one();
+        Self::pairing(
+            com1.scalar_linear_map(&one1, p1),
+            com2.scalar_linear_map(&one2, p2).scalar_mul(z),
+        )
+    }
 }

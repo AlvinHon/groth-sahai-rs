@@ -34,6 +34,8 @@ pub type Com2<E> = Com<<E as ark_ec::pairing::Pairing>::G2>;
 #[cfg(test)]
 mod tests {
     #![allow(non_snake_case)]
+    use crate::{AbstractCrs, CRS};
+
     use super::*;
 
     use ark_bls12_381::Bls12_381 as F;
@@ -551,12 +553,12 @@ mod tests {
         ]);
         let bt_vec = Matrix::new(&[
             [
-                F::pairing(b1_vec.as_ref()[(0, 0)], b2_vec.as_ref()[(0, 0)]),
-                F::pairing(b1_vec.as_ref()[(0, 0)], b2_vec.as_ref()[(1, 0)]),
+                F::pairing(b1_vec[(0, 0)], b2_vec[(0, 0)]),
+                F::pairing(b1_vec[(0, 0)], b2_vec[(1, 0)]),
             ],
             [
-                F::pairing(b1_vec.as_ref()[(1, 0)], b2_vec.as_ref()[(0, 0)]),
-                F::pairing(b1_vec.as_ref()[(1, 0)], b2_vec.as_ref()[(1, 0)]),
+                F::pairing(b1_vec[(1, 0)], b2_vec[(0, 0)]),
+                F::pairing(b1_vec[(1, 0)], b2_vec[(1, 0)]),
             ],
         ]);
 
@@ -564,14 +566,14 @@ mod tests {
         let b2 = Com::<G2>::from(b2_vec.clone());
         let bt = ComT::<F>::from(bt_vec.clone());
 
-        assert_eq!(b1.0, b1_vec.as_ref()[(0, 0)]);
-        assert_eq!(b1.1, b1_vec.as_ref()[(1, 0)]);
-        assert_eq!(b2.0, b2_vec.as_ref()[(0, 0)]);
-        assert_eq!(b2.1, b2_vec.as_ref()[(1, 0)]);
-        assert_eq!(bt.0, bt_vec.as_ref()[(0, 0)]);
-        assert_eq!(bt.1, bt_vec.as_ref()[(0, 1)]);
-        assert_eq!(bt.2, bt_vec.as_ref()[(1, 0)]);
-        assert_eq!(bt.3, bt_vec.as_ref()[(1, 1)]);
+        assert_eq!(b1.0, b1_vec[(0, 0)]);
+        assert_eq!(b1.1, b1_vec[(1, 0)]);
+        assert_eq!(b2.0, b2_vec[(0, 0)]);
+        assert_eq!(b2.1, b2_vec[(1, 0)]);
+        assert_eq!(bt.0, bt_vec[(0, 0)]);
+        assert_eq!(bt.1, bt_vec[(0, 1)]);
+        assert_eq!(bt.2, bt_vec[(1, 0)]);
+        assert_eq!(bt.3, bt_vec[(1, 1)]);
     }
 
     #[test]
@@ -594,123 +596,121 @@ mod tests {
         assert_eq!(vec_b2[1], Com::<G2>::linear_map(&vec_g2[1]));
     }
 
-    // TODO - Fix the test. Most likely the CRS needs to be modified.
+    #[test]
+    fn test_batched_scalar_linear_maps() {
+        let mut rng = test_rng();
+        let key = CRS::<F>::generate_crs(&mut rng);
 
-    // #[test]
-    // fn test_batched_scalar_linear_maps() {
-    //     let mut rng = test_rng();
-    //     let key = CRS::<F>::generate_crs(&mut rng);
+        let vec_scalar = vec![Fr::rand(&mut rng), Fr::rand(&mut rng)];
+        let vec_b1 = key.u[1].batch_scalar_linear_map(&vec_scalar, &key.g1_gen);
+        let vec_b2 = key.v[1].batch_scalar_linear_map(&vec_scalar, &key.g2_gen);
 
-    //     let vec_scalar = vec![Fr::rand(&mut rng), Fr::rand(&mut rng)];
-    //     let vec_b1 = Com::<G1>::batch_scalar_linear_map(&vec_scalar, &key);
-    //     let vec_b2 = Com::<G2>::batch_scalar_linear_map(&vec_scalar, &key);
+        assert_eq!(
+            vec_b1[0],
+            key.u[1].scalar_linear_map(&vec_scalar[0], &key.g1_gen)
+        );
+        assert_eq!(
+            vec_b1[1],
+            key.u[1].scalar_linear_map(&vec_scalar[1], &key.g1_gen)
+        );
+        assert_eq!(
+            vec_b2[0],
+            key.v[1].scalar_linear_map(&vec_scalar[0], &key.g2_gen)
+        );
+        assert_eq!(
+            vec_b2[1],
+            key.v[1].scalar_linear_map(&vec_scalar[1], &key.g2_gen)
+        );
+    }
 
-    //     assert_eq!(
-    //         vec_b1[0],
-    //         Com::<G1>::scalar_linear_map(&vec_scalar[0], &key)
-    //     );
-    //     assert_eq!(
-    //         vec_b1[1],
-    //         Com::<G1>::scalar_linear_map(&vec_scalar[1], &key)
-    //     );
-    //     assert_eq!(
-    //         vec_b2[0],
-    //         Com::<G2>::scalar_linear_map(&vec_scalar[0], &key)
-    //     );
-    //     assert_eq!(
-    //         vec_b2[1],
-    //         Com::<G2>::scalar_linear_map(&vec_scalar[1], &key)
-    //     );
-    // }
+    #[test]
+    fn test_PPE_linear_maps() {
+        let mut rng = test_rng();
+        let a1 = G1::rand(&mut rng).into_affine();
+        let a2 = G2::rand(&mut rng).into_affine();
+        let at = F::pairing(a1, a2);
+        let b1 = Com::<G1>::linear_map(&a1);
+        let b2 = Com::<G2>::linear_map(&a2);
+        let bt = ComT::<F>::linear_map_PPE(&at);
 
-    // #[test]
-    // fn test_PPE_linear_maps() {
-    //     let mut rng = test_rng();
-    //     let a1 = G1::rand(&mut rng).into_affine();
-    //     let a2 = G2::rand(&mut rng).into_affine();
-    //     let at = F::pairing(a1, a2);
-    //     let b1 = Com::<G1>::linear_map(&a1);
-    //     let b2 = Com::<G2>::linear_map(&a2);
-    //     let bt = ComT::<F>::linear_map_PPE(&at);
+        assert_eq!(b1.0, G1Affine::zero());
+        assert_eq!(b1.1, a1);
+        assert_eq!(b2.0, G2Affine::zero());
+        assert_eq!(b2.1, a2);
+        assert_eq!(bt.0, GT::zero());
+        assert_eq!(bt.1, GT::zero());
+        assert_eq!(bt.2, GT::zero());
+        assert_eq!(bt.3, F::pairing(a1, a2));
+    }
 
-    //     assert_eq!(b1.0, G1Affine::zero());
-    //     assert_eq!(b1.1, a1);
-    //     assert_eq!(b2.0, G2Affine::zero());
-    //     assert_eq!(b2.1, a2);
-    //     assert_eq!(bt.0, GT::zero());
-    //     assert_eq!(bt.1, GT::zero());
-    //     assert_eq!(bt.2, GT::zero());
-    //     assert_eq!(bt.3, F::pairing(a1, a2));
-    // }
+    // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
+    #[test]
+    fn test_MSMEG1_linear_maps() {
+        let mut rng = test_rng();
+        let key = CRS::<F>::generate_crs(&mut rng);
 
-    // // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
-    // #[test]
-    // fn test_MSMEG1_linear_maps() {
-    //     let mut rng = test_rng();
-    //     let key = CRS::<F>::generate_crs(&mut rng);
+        let a1 = G1::rand(&mut rng).into_affine();
+        let a2 = Fr::rand(&mut rng);
+        let at = a1.mul(a2).into_affine();
+        let b1 = Com::<G1>::linear_map(&a1);
+        let b2 = key.v[1].scalar_linear_map(&a2, &key.g2_gen);
+        let bt = ComT::<F>::linear_map_MSMEG1(&at, &key.v[1], &key.g2_gen);
 
-    //     let a1 = G1::rand(&mut rng).into_affine();
-    //     let a2 = Fr::rand(&mut rng);
-    //     let at = a1.mul(a2).into_affine();
-    //     let b1 = Com::<G1>::linear_map(&a1);
-    //     let b2 = Com::<G2>::scalar_linear_map(&a2, &key);
-    //     let bt = ComT::<F>::linear_map_MSMEG1(&at, &key);
+        assert_eq!(b1.0, G1Affine::zero());
+        assert_eq!(b1.1, a1);
+        assert_eq!(b2.0, key.v[1].0.mul(a2));
+        assert_eq!(b2.1, (key.v[1].1 + key.g2_gen).mul(a2));
+        assert_eq!(bt.0, GT::zero());
+        assert_eq!(bt.1, GT::zero());
+        assert_eq!(bt.2, F::pairing(at, key.v[1].0));
+        assert_eq!(bt.3, F::pairing(at, key.v[1].1 + key.g2_gen));
+    }
 
-    //     assert_eq!(b1.0, G1Affine::zero());
-    //     assert_eq!(b1.1, a1);
-    //     assert_eq!(b2.0, key.v[1].0.mul(a2));
-    //     assert_eq!(b2.1, (key.v[1].1 + key.g2_gen).mul(a2));
-    //     assert_eq!(bt.0, GT::zero());
-    //     assert_eq!(bt.1, GT::zero());
-    //     assert_eq!(bt.2, F::pairing(at, key.v[1].0));
-    //     assert_eq!(bt.3, F::pairing(at, key.v[1].1 + key.g2_gen));
-    // }
+    // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
+    #[test]
+    fn test_MSMEG2_linear_maps() {
+        let mut rng = test_rng();
+        let key = CRS::<F>::generate_crs(&mut rng);
 
-    // // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
-    // #[test]
-    // fn test_MSMEG2_linear_maps() {
-    //     let mut rng = test_rng();
-    //     let key = CRS::<F>::generate_crs(&mut rng);
+        let a1 = Fr::rand(&mut rng);
+        let a2 = G2::rand(&mut rng).into_affine();
+        let at = a2.mul(a1).into_affine();
+        let b1 = key.u[1].scalar_linear_map(&a1, &key.g1_gen);
+        let b2 = Com::<G2>::linear_map(&a2);
+        let bt = ComT::<F>::linear_map_MSMEG2(&at, &key.u[1], &key.g1_gen);
 
-    //     let a1 = Fr::rand(&mut rng);
-    //     let a2 = G2::rand(&mut rng).into_affine();
-    //     let at = a2.mul(a1).into_affine();
-    //     let b1 = Com::<G1>::scalar_linear_map(&a1, &key);
-    //     let b2 = Com::<G2>::linear_map(&a2);
-    //     let bt = ComT::<F>::linear_map_MSMEG2(&at, &key);
+        assert_eq!(b1.0, key.u[1].0.mul(a1));
+        assert_eq!(b1.1, (key.u[1].1 + key.g1_gen).mul(a1));
+        assert_eq!(b2.0, G2Affine::zero());
+        assert_eq!(b2.1, a2);
+        assert_eq!(bt.0, GT::zero());
+        assert_eq!(bt.1, F::pairing(key.u[1].0, at));
+        assert_eq!(bt.2, GT::zero());
+        assert_eq!(bt.3, F::pairing(key.u[1].1 + key.g1_gen, at));
+    }
 
-    //     assert_eq!(b1.0, key.u[1].0.mul(a1));
-    //     assert_eq!(b1.1, (key.u[1].1 + key.g1_gen).mul(a1));
-    //     assert_eq!(b2.0, G2Affine::zero());
-    //     assert_eq!(b2.1, a2);
-    //     assert_eq!(bt.0, GT::zero());
-    //     assert_eq!(bt.1, F::pairing(key.u[1].0, at));
-    //     assert_eq!(bt.2, GT::zero());
-    //     assert_eq!(bt.3, F::pairing(key.u[1].1 + key.g1_gen, at));
-    // }
+    // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
+    #[test]
+    fn test_QuadEqu_linear_maps() {
+        let mut rng = test_rng();
+        let key = CRS::<F>::generate_crs(&mut rng);
 
-    // // Test that we're using the linear map that preserves witness-indistinguishability (see Ghadafi et al. 2010)
-    // #[test]
-    // fn test_QuadEqu_linear_maps() {
-    //     let mut rng = test_rng();
-    //     let key = CRS::<F>::generate_crs(&mut rng);
-
-    //     let a1 = Fr::rand(&mut rng);
-    //     let a2 = Fr::rand(&mut rng);
-    //     let at = a1 * a2;
-    //     let b1 = Com::<G1>::scalar_linear_map(&a1, &key);
-    //     let b2 = Com::<G2>::scalar_linear_map(&a2, &key);
-    //     let bt = ComT::<F>::linear_map_quad(&at, &key);
-    //     let W1 = Com::<G1>(key.u[1].0, (key.u[1].1 + key.g1_gen).into());
-    //     let W2 = Com::<G2>(key.v[1].0, (key.v[1].1 + key.g2_gen).into());
-    //     assert_eq!(b1.0, W1.0.mul(a1));
-    //     assert_eq!(b1.1, W1.1.mul(a1));
-    //     assert_eq!(b2.0, W2.0.mul(a2));
-    //     assert_eq!(b2.1, W2.1.mul(a2));
-    //     assert_eq!(
-    //         bt,
-    //         ComT::<F>::pairing(W1.scalar_mul(&a1), W2.scalar_mul(&a2))
-    //     );
-    //     assert_eq!(bt, ComT::<F>::pairing(W1, W2.scalar_mul(&at)));
-    // }
+        let a1 = Fr::rand(&mut rng);
+        let a2 = Fr::rand(&mut rng);
+        let at = a1 * a2;
+        let b1 = key.u[1].scalar_linear_map(&a1, &key.g1_gen);
+        let b2 = key.v[1].scalar_linear_map(&a2, &key.g2_gen);
+        let bt = ComT::<F>::linear_map_quad(&at, &key.u[1], &key.g1_gen, &key.v[1], &key.g2_gen);
+        let W1 = Com::<G1>(key.u[1].0, (key.u[1].1 + key.g1_gen).into());
+        let W2 = Com::<G2>(key.v[1].0, (key.v[1].1 + key.g2_gen).into());
+        assert_eq!(b1.0, W1.0.mul(a1));
+        assert_eq!(b1.1, W1.1.mul(a1));
+        assert_eq!(b2.0, W2.0.mul(a2));
+        assert_eq!(b2.1, W2.1.mul(a2));
+        assert_eq!(
+            bt,
+            ComT::<F>::pairing(W1.scalar_mul(&a1), W2.scalar_mul(&a2))
+        );
+        assert_eq!(bt, ComT::<F>::pairing(W1, W2.scalar_mul(&at)));
+    }
 }

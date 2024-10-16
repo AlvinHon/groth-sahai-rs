@@ -22,10 +22,10 @@ use groth_sahai::{
     },
     statement::PPE,
     verifier::Verifiable,
-    AbstractCrs, Com1, Mat, Matrix, B1, CRS,
+    AbstractCrs, Com, Mat, Matrix, CRS,
 };
 
-type G1Projective = <F as Pairing>::G1;
+type G1 = <F as Pairing>::G1;
 type G1Affine = <F as Pairing>::G1Affine;
 //type G2Projective = <F as PairingEngine>::G2Projective;
 type G2Affine = <F as Pairing>::G2Affine;
@@ -48,95 +48,34 @@ macro_rules! affine_group_rand {
 
 pub fn bench_small_field_matrix_mul(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
-    let mut rng = test_rng();
+    let rng = &mut test_rng();
 
     // 2 x 2 matrix
-    let lhs: Matrix<Fr> = vec![
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-    ];
+    let lhs: Matrix<Fr> = Matrix::rand(rng, 2, 2);
     // 2 x 1 matrix
-    let rhs: Matrix<Fr> = vec![vec![Fr::rand(&mut rng)], vec![Fr::rand(&mut rng)]];
+    let rhs: Matrix<Fr> = Matrix::rand(rng, 2, 1);
     c.bench_function("sequential (2 x 2) * (2 x 1) field matrix mult", |bench| {
         bench.iter(|| {
-            let _ = lhs.right_mul(&rhs, false);
-        });
-    });
-}
-
-pub fn bench_small_field_matrix_mul_par(c: &mut Criterion) {
-    std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
-    let mut rng = test_rng();
-
-    // 2 x 2 matrix
-    let lhs: Matrix<Fr> = vec![
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-    ];
-    // 2 x 1 matrix
-    let rhs: Matrix<Fr> = vec![vec![Fr::rand(&mut rng)], vec![Fr::rand(&mut rng)]];
-    c.bench_function("concurrent (2 x 2) * (2 x 1) field matrix mult", |bench| {
-        bench.iter(|| {
-            let _ = lhs.right_mul(&rhs, true);
+            let _ = lhs.right_mul(&rhs);
         });
     });
 }
 
 pub fn bench_large_field_matrix_mul(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
-    let mut rng = test_rng();
+    let rng = &mut test_rng();
 
     // 334 x 2 matrix
     let m = 334;
-    let mut lhs: Matrix<Fr> = Vec::with_capacity(m);
-    for _ in 0..m {
-        lhs.push(vec![Fr::rand(&mut rng), Fr::rand(&mut rng)]);
-    }
+    let lhs: Matrix<Fr> = Matrix::rand(rng, m, 2);
     // 2 x 334 matrix
     let n = 334;
-    let mut rhs: Matrix<Fr> = Vec::with_capacity(2);
-    for _ in 0..2 {
-        let mut tmp: Vec<Fr> = Vec::with_capacity(n);
-        for _ in 0..n {
-            tmp.push(Fr::rand(&mut rng));
-        }
-        rhs.push(tmp);
-    }
+    let rhs: Matrix<Fr> = Matrix::rand(rng, 2, n);
     c.bench_function(
         &format!("sequential ({} x 2) * (2 x {}) field matrix mult", m, n),
         |bench| {
             bench.iter(|| {
-                let _ = lhs.right_mul(&rhs, false);
-            });
-        },
-    );
-}
-
-pub fn bench_large_field_matrix_mul_par(c: &mut Criterion) {
-    std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
-    let mut rng = test_rng();
-
-    // 334 x 2 matrix
-    let m = 334;
-    let mut lhs: Matrix<Fr> = Vec::with_capacity(999);
-    for _ in 0..m {
-        lhs.push(vec![Fr::rand(&mut rng), Fr::rand(&mut rng)]);
-    }
-    // 2 x 334 matrix
-    let n = 334;
-    let mut rhs: Matrix<Fr> = Vec::with_capacity(2);
-    for _ in 0..2 {
-        let mut tmp: Vec<Fr> = Vec::with_capacity(n);
-        for _ in 0..n {
-            tmp.push(Fr::rand(&mut rng));
-        }
-        rhs.push(tmp);
-    }
-    c.bench_function(
-        &format!("concurrent ({} x 2) * (2 x {}) field matrix mult", m, n),
-        |bench| {
-            bench.iter(|| {
-                let _ = lhs.right_mul(&rhs, true);
+                let _ = lhs.right_mul(&rhs);
             });
         },
     );
@@ -145,51 +84,22 @@ pub fn bench_large_field_matrix_mul_par(c: &mut Criterion) {
 pub fn bench_small_B1_matrix_mul(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g1gen = G1Projective::rand(&mut rng).into_affine();
+    let g1gen = G1::rand(&mut rng).into_affine();
 
-    let rhs: Matrix<Com1<F>> = vec![
-        vec![Com1::<F>(
+    let rhs = Matrix::new(&[
+        [Com::<G1>(
             affine_group_rand!(g1gen, rng),
             affine_group_rand!(g1gen, rng),
         )],
-        vec![Com1::<F>(
+        [Com::<G1>(
             affine_group_rand!(g1gen, rng),
             affine_group_rand!(g1gen, rng),
         )],
-    ];
-    let lhs: Matrix<Fr> = vec![
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-    ];
+    ]);
+    let lhs: Matrix<Fr> = Matrix::rand(&mut rng, 2, 2);
     c.bench_function("sequential (2 x 2) Fp * (2 x 1) B1 matrix mult", |bench| {
         bench.iter(|| {
-            let _ = rhs.left_mul(&lhs, false);
-        });
-    });
-}
-
-pub fn bench_small_B1_matrix_mul_par(c: &mut Criterion) {
-    std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
-    let mut rng = test_rng();
-    let g1gen = G1Projective::rand(&mut rng).into_affine();
-
-    let rhs: Matrix<Com1<F>> = vec![
-        vec![Com1::<F>(
-            affine_group_rand!(g1gen, rng),
-            affine_group_rand!(g1gen, rng),
-        )],
-        vec![Com1::<F>(
-            affine_group_rand!(g1gen, rng),
-            affine_group_rand!(g1gen, rng),
-        )],
-    ];
-    let lhs: Matrix<Fr> = vec![
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-        vec![Fr::rand(&mut rng), Fr::rand(&mut rng)],
-    ];
-    c.bench_function("concurrent (2 x 2) Fp * (2 x 1) B1 matrix mult", |bench| {
-        bench.iter(|| {
-            let _ = rhs.left_mul(&lhs, true);
+            let _ = rhs.left_mul(&lhs);
         });
     });
 }
@@ -197,9 +107,9 @@ pub fn bench_small_B1_matrix_mul_par(c: &mut Criterion) {
 fn bench_B1_scalar_mul(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g11 = G1Projective::rand(&mut rng).into_affine();
-    let g12 = G1Projective::rand(&mut rng).into_affine();
-    let b1 = Com1::<F>(g11, g12);
+    let g11 = G1::rand(&mut rng).into_affine();
+    let g12 = G1::rand(&mut rng).into_affine();
+    let b1 = Com::<G1>(g11, g12);
     let fr = Fr::rand(&mut rng);
 
     c.bench_function("B1 scalar mul", |bench| {
@@ -212,12 +122,12 @@ fn bench_B1_scalar_mul(c: &mut Criterion) {
 fn bench_B1_add(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g11 = G1Projective::rand(&mut rng).into_affine();
-    let g12 = G1Projective::rand(&mut rng).into_affine();
-    let b11 = Com1::<F>(g11, g12);
-    let g21 = G1Projective::rand(&mut rng).into_affine();
-    let g22 = G1Projective::rand(&mut rng).into_affine();
-    let b12 = Com1::<F>(g21, g22);
+    let g11 = G1::rand(&mut rng).into_affine();
+    let g12 = G1::rand(&mut rng).into_affine();
+    let b11 = Com::<G1>(g11, g12);
+    let g21 = G1::rand(&mut rng).into_affine();
+    let g22 = G1::rand(&mut rng).into_affine();
+    let b12 = Com::<G1>(g21, g22);
 
     c.bench_function("B1 add", |bench| {
         bench.iter(|| {
@@ -229,7 +139,7 @@ fn bench_B1_add(c: &mut Criterion) {
 fn bench_G1_scalar_mul(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g1gen = G1Projective::rand(&mut rng).into_affine();
+    let g1gen = G1::rand(&mut rng).into_affine();
     let fr = Fr::rand(&mut rng);
 
     c.bench_function("G1 scalar mul", |bench| {
@@ -242,8 +152,8 @@ fn bench_G1_scalar_mul(c: &mut Criterion) {
 fn bench_G1_affine_add(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g11 = G1Projective::rand(&mut rng).into_affine();
-    let g12 = G1Projective::rand(&mut rng).into_affine();
+    let g11 = G1::rand(&mut rng).into_affine();
+    let g12 = G1::rand(&mut rng).into_affine();
 
     c.bench_function("G1 affine add", |bench| {
         bench.iter(|| {
@@ -255,8 +165,8 @@ fn bench_G1_affine_add(c: &mut Criterion) {
 fn bench_G1_projective_add(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g11 = G1Projective::rand(&mut rng);
-    let g12 = G1Projective::rand(&mut rng);
+    let g11 = G1::rand(&mut rng);
+    let g12 = G1::rand(&mut rng);
 
     c.bench_function("G1 projective add", |bench| {
         bench.iter(|| {
@@ -268,7 +178,7 @@ fn bench_G1_projective_add(c: &mut Criterion) {
 fn bench_G1_into_affine(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g1gen = G1Projective::rand(&mut rng);
+    let g1gen = G1::rand(&mut rng);
 
     c.bench_function("G1 projective into affine", |bench| {
         bench.iter(|| {
@@ -280,7 +190,7 @@ fn bench_G1_into_affine(c: &mut Criterion) {
 fn bench_G1_into_projective(c: &mut Criterion) {
     std::env::set_var("DETERMINISTIC_TEST_RNG", "1");
     let mut rng = test_rng();
-    let g1gen = G1Projective::rand(&mut rng).into_affine();
+    let g1gen = G1::rand(&mut rng).into_affine();
 
     c.bench_function("G1 affine into projective", |bench| {
         bench.iter(|| {
@@ -436,7 +346,7 @@ fn bench_small_PPE_proof(c: &mut Criterion) {
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         ],
-        gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+        gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
         // NOTE: dummy variable for this bench
         target: GT::rand(&mut rng),
     };
@@ -470,14 +380,7 @@ fn bench_large_PPE_proof(c: &mut Criterion) {
     let xcoms: Commit1<F> = batch_commit_G1(&xvars, &crs, &mut rng);
     let ycoms: Commit2<F> = batch_commit_G2(&yvars, &crs, &mut rng);
 
-    let mut gamma: Matrix<Fr> = Vec::with_capacity(m);
-    for _ in 0..m {
-        let mut vec: Vec<Fr> = Vec::with_capacity(n);
-        for _ in 0..n {
-            vec.push(Fr::rand(&mut rng));
-        }
-        gamma.push(vec);
-    }
+    let gamma: Matrix<Fr> = Matrix::rand(&mut rng, m, n);
 
     let equ: PPE<F> = PPE::<F> {
         a_consts,
@@ -514,7 +417,7 @@ fn bench_small_PPE_verify(c: &mut Criterion) {
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
             crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         ],
-        gamma: vec![vec![Fr::one()], vec![Fr::zero()]],
+        gamma: Matrix::new(&[[Fr::one()], [Fr::zero()]]),
         // NOTE: dummy variable for this bench
         target: GT::rand(&mut rng),
     };
@@ -548,14 +451,7 @@ fn bench_large_PPE_verify(c: &mut Criterion) {
         b_consts.push(crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine());
     }
 
-    let mut gamma: Matrix<Fr> = Vec::with_capacity(m);
-    for _ in 0..m {
-        let mut vec: Vec<Fr> = Vec::with_capacity(n);
-        for _ in 0..n {
-            vec.push(Fr::rand(&mut rng));
-        }
-        gamma.push(vec);
-    }
+    let gamma: Matrix<Fr> = Matrix::rand(&mut rng, m, n);
 
     let equ: PPE<F> = PPE::<F> {
         a_consts,
@@ -582,21 +478,18 @@ criterion_group! {
     config = Criterion::default().sample_size(100);
     targets =
         bench_small_field_matrix_mul,
-        bench_small_field_matrix_mul_par,
 }
 criterion_group! {
     name = large_field_matrix_mul;
     config = Criterion::default().sample_size(25);
     targets =
         bench_large_field_matrix_mul,
-        bench_large_field_matrix_mul_par
 }
 criterion_group! {
     name = small_B1_matrix_mul;
     config = Criterion::default().sample_size(25);
     targets =
         bench_small_B1_matrix_mul,
-        bench_small_B1_matrix_mul_par,
 }
 // operations in G2/B2 are ~4x that of G1/B1, respectively
 

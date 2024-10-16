@@ -1,15 +1,13 @@
 //! Contains the functionality for verifying the satisfiability of Groth-Sahai equations over bilinear groups.
 //!
-//! Verifying an equation's proof primarily involves addition in [`BT`](crate::data_structures::ComT) (equiv. additions in 4 [`GT`](ark_ec::Pairing::GT))
-//! and pairings over elements in [`B1`](crate::data_structures::Com1) and [`B2`](crate::data_structures::Com2).
+//! Verifying an equation's proof primarily involves addition in [`BT`](crate::algebra::ComT) (equiv. additions in 4 [`GT`](ark_ec::Pairing::GT))
+//! and pairings over elements in [`B1`](crate::algebra::Com1) and [`B2`](crate::algebra::Com2).
 //!
 //! See the [`prover`](crate::prover) and [`statement`](crate::statement) modules for more details about the structure of the equations and their proofs.
 
 use ark_ec::pairing::Pairing;
 
-use crate::data_structures::{
-    col_vec_to_vec, vec_to_col_vec, Com1, Com2, ComT, Mat, Matrix, B1, B2, BT,
-};
+use crate::algebra::{col_vec_to_vec, vec_to_col_vec, Com1, Com2, ComT, Mat, Matrix};
 use crate::generator::CRS;
 use crate::prover::CProof;
 use crate::statement::{Equation, QuadEqu, MSMEG1, MSMEG2, PPE};
@@ -24,7 +22,6 @@ impl<E: Pairing> Verifiable<E> for PPE<E> {
     fn verify(&self, com_proof: &CProof<E>, crs: &CRS<E>) -> bool {
         assert_eq!(com_proof.equ_proofs.len(), 1);
         assert_eq!(self.get_type(), com_proof.equ_proofs[0].equ_type);
-        let is_parallel = true;
 
         let lin_a_com_y = ComT::<E>::pairing_sum(
             &Com1::<E>::batch_linear_map(&self.a_consts),
@@ -37,7 +34,7 @@ impl<E: Pairing> Verifiable<E> for PPE<E> {
         );
 
         let stmt_com_y: Matrix<Com2<E>> =
-            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma, is_parallel);
+            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma);
         let com_x_stmt_com_y =
             ComT::<E>::pairing_sum(&com_proof.xcoms.coms, &col_vec_to_vec(&stmt_com_y));
 
@@ -58,7 +55,6 @@ impl<E: Pairing> Verifiable<E> for MSMEG1<E> {
     fn verify(&self, com_proof: &CProof<E>, crs: &CRS<E>) -> bool {
         assert_eq!(com_proof.equ_proofs.len(), 1);
         assert_eq!(self.get_type(), com_proof.equ_proofs[0].equ_type);
-        let is_parallel = true;
 
         let lin_a_com_y = ComT::<E>::pairing_sum(
             &Com1::<E>::batch_linear_map(&self.a_consts),
@@ -67,15 +63,15 @@ impl<E: Pairing> Verifiable<E> for MSMEG1<E> {
 
         let com_x_lin_b = ComT::<E>::pairing_sum(
             &com_proof.xcoms.coms,
-            &Com2::<E>::batch_scalar_linear_map(&self.b_consts, crs),
+            &crs.v[1].batch_scalar_linear_map(&self.b_consts, &crs.g2_gen),
         );
 
         let stmt_com_y: Matrix<Com2<E>> =
-            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma, is_parallel);
+            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma);
         let com_x_stmt_com_y =
             ComT::<E>::pairing_sum(&com_proof.xcoms.coms, &col_vec_to_vec(&stmt_com_y));
 
-        let lin_t = ComT::<E>::linear_map_MSMEG1(&self.target, crs);
+        let lin_t = ComT::<E>::linear_map_MSMEG1(&self.target, &crs.v[1], &crs.g2_gen);
 
         let com1_pf2 = ComT::<E>::pairing_sum(&crs.u, &com_proof.equ_proofs[0].pi);
 
@@ -92,10 +88,9 @@ impl<E: Pairing> Verifiable<E> for MSMEG2<E> {
     fn verify(&self, com_proof: &CProof<E>, crs: &CRS<E>) -> bool {
         assert_eq!(com_proof.equ_proofs.len(), 1);
         assert_eq!(self.get_type(), com_proof.equ_proofs[0].equ_type);
-        let is_parallel = true;
 
         let lin_a_com_y = ComT::<E>::pairing_sum(
-            &Com1::<E>::batch_scalar_linear_map(&self.a_consts, crs),
+            &crs.u[1].batch_scalar_linear_map(&self.a_consts, &crs.g1_gen),
             &com_proof.ycoms.coms,
         );
 
@@ -105,11 +100,11 @@ impl<E: Pairing> Verifiable<E> for MSMEG2<E> {
         );
 
         let stmt_com_y: Matrix<Com2<E>> =
-            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma, is_parallel);
+            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma);
         let com_x_stmt_com_y =
             ComT::<E>::pairing_sum(&com_proof.xcoms.coms, &col_vec_to_vec(&stmt_com_y));
 
-        let lin_t = ComT::<E>::linear_map_MSMEG2(&self.target, crs);
+        let lin_t = ComT::<E>::linear_map_MSMEG2(&self.target, &crs.u[1], &crs.g1_gen);
 
         let com1_pf2 = ComT::<E>::pairing(crs.u[0], com_proof.equ_proofs[0].pi[0]);
 
@@ -126,24 +121,29 @@ impl<E: Pairing> Verifiable<E> for QuadEqu<E> {
     fn verify(&self, com_proof: &CProof<E>, crs: &CRS<E>) -> bool {
         assert_eq!(com_proof.equ_proofs.len(), 1);
         assert_eq!(self.get_type(), com_proof.equ_proofs[0].equ_type);
-        let is_parallel = true;
 
         let lin_a_com_y = ComT::<E>::pairing_sum(
-            &Com1::<E>::batch_scalar_linear_map(&self.a_consts, crs),
+            &crs.u[1].batch_scalar_linear_map(&self.a_consts, &crs.g1_gen),
             &com_proof.ycoms.coms,
         );
 
         let com_x_lin_b = ComT::<E>::pairing_sum(
             &com_proof.xcoms.coms,
-            &Com2::<E>::batch_scalar_linear_map(&self.b_consts, crs),
+            &crs.v[1].batch_scalar_linear_map(&self.b_consts, &crs.g2_gen),
         );
 
         let stmt_com_y: Matrix<Com2<E>> =
-            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma, is_parallel);
+            vec_to_col_vec(&com_proof.ycoms.coms).left_mul(&self.gamma);
         let com_x_stmt_com_y =
             ComT::<E>::pairing_sum(&com_proof.xcoms.coms, &col_vec_to_vec(&stmt_com_y));
 
-        let lin_t = ComT::<E>::linear_map_quad(&self.target, crs);
+        let lin_t = ComT::<E>::linear_map_quad(
+            &self.target,
+            &crs.u[1],
+            &crs.g1_gen,
+            &crs.v[1],
+            &crs.g2_gen,
+        );
 
         let com1_pf2 = ComT::<E>::pairing(crs.u[0], com_proof.equ_proofs[0].pi[0]);
 

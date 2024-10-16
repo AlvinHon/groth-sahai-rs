@@ -1,9 +1,10 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Index};
 
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::Field;
+use ark_ff::{Field, UniformRand, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Valid};
-use ndarray::{Array, Axis, Ix2};
+use ark_std::rand::Rng;
+use ndarray::{Array, Ix2};
 
 use super::Com;
 
@@ -25,6 +26,25 @@ where
         }
     }
 
+    /// An array with zero rows and n columns of zeros.
+    pub fn zeros_column(n: usize) -> Self
+    where
+        F: Zero,
+    {
+        Self {
+            inner: Array::zeros((0, n)),
+        }
+    }
+
+    pub fn rand<R: Rng>(rng: &mut R, rows: usize, cols: usize) -> Self
+    where
+        F: UniformRand,
+    {
+        Self {
+            inner: Array::from_shape_fn((rows, cols), |_| F::rand(rng)),
+        }
+    }
+
     pub fn to_vecs(&self) -> Vec<Vec<F>> {
         self.inner
             .outer_iter()
@@ -40,11 +60,6 @@ where
             )
             .unwrap(),
         }
-    }
-
-    #[inline]
-    pub fn append(&mut self, other: &Self) {
-        self.inner.append(Axis(0), other.inner.view()).unwrap();
     }
 
     #[inline]
@@ -68,6 +83,17 @@ where
 {
     fn as_ref(&self) -> &Array<F, Ix2> {
         &self.inner
+    }
+}
+
+impl<F> Index<(usize, usize)> for Matrix<F>
+where
+    F: Clone,
+{
+    type Output = F;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        &self.inner[index]
     }
 }
 
@@ -218,7 +244,7 @@ impl<G: CurveGroup> Mat<Com<G>> for Matrix<Com<G>> {
                 (0..dim2.1)
                     .map(|j| {
                         (0..dim2.0)
-                            .map(|k| row[k].scalar_mul(&rhs.inner[(k, j)]).into())
+                            .map(|k| row[k].scalar_mul(&rhs.inner[(k, j)]))
                             .sum()
                     })
                     .collect::<Vec<Com<G>>>()

@@ -112,7 +112,6 @@ impl<G: CurveGroup> UniformRand for Com<G> {
 
 impl<G: CurveGroup> From<Matrix<G::Affine>> for Com<G> {
     fn from(mat: Matrix<G::Affine>) -> Self {
-        let mat = mat.as_ref();
         Self(mat[(0, 0)], mat[(1, 0)])
     }
 }

@@ -11,7 +11,7 @@
 //!    1) Perfect soundness string (i.e. perfectly binding), or
 //!    2) Composable witness-indistinguishability string (i.e. perfectly hiding)
 
-use crate::data_structures::{Com1, Com2};
+use crate::algebra::{Com, Com1, Com2};
 
 use ark_ec::{
     pairing::{Pairing, PairingOutput},
@@ -23,9 +23,8 @@ use ark_std::{ops::Mul, rand::Rng};
 
 /// An abstract trait for denoting how to generate a CRS
 pub trait AbstractCrs<E: Pairing> {
-    /// Generates the keys `u` for committing `G1` and `Fr` to
-    /// [`B1`](crate::data_structures::B1) and `v` for committing `G2` and `Fr` to
-    /// [`B2`](crate::data_structures::B2).
+    /// Generates the keys `u` for committing `G1` and `Fr` to `B1`
+    /// and `v` for committing `G2` and `Fr` to `B2`.
     fn generate_crs<R>(rng: &mut R) -> Self
     where
         R: Rng;
@@ -101,12 +100,12 @@ impl<E: Pairing> AbstractCrs<E> for CRS<E> {
         let (v1, v2) = Self::prepare_real_binding_key(p1, p2, q1, t1, q2, t2);
 
         // B1 commitment key for G1 and Fr
-        let u11 = Com1::<E>(p1.into_affine(), q1.into_affine());
-        let u12 = Com1::<E>(u1.into_affine(), v1.into_affine());
+        let u11 = Com::<E::G1>(p1.into_affine(), q1.into_affine());
+        let u12 = Com::<E::G1>(u1.into_affine(), v1.into_affine());
 
         // B2 commitment key for G2 and Fr
-        let u21 = Com2::<E>(p2.into_affine(), q2.into_affine());
-        let u22 = Com2::<E>(u2.into_affine(), v2.into_affine());
+        let u21 = Com::<E::G2>(p2.into_affine(), q2.into_affine());
+        let u22 = Com::<E::G2>(u2.into_affine(), v2.into_affine());
 
         CRS::<E> {
             u: vec![u11, u12],
@@ -169,10 +168,10 @@ mod tests {
         let (v1, v2) = CRS::<F>::prepare_real_binding_key(p1, p2, q1, t1, q2, t2);
 
         // Generated commitment keys are non-trivial
-        assert_ne!(crs.u[0], Com1::zero());
-        assert_ne!(crs.u[1], Com1::zero());
-        assert_ne!(crs.v[0], Com2::zero());
-        assert_ne!(crs.v[1], Com2::zero());
+        assert_ne!(crs.u[0], Com1::<F>::zero());
+        assert_ne!(crs.u[1], Com1::<F>::zero());
+        assert_ne!(crs.v[0], Com2::<F>::zero());
+        assert_ne!(crs.v[1], Com2::<F>::zero());
 
         // The chosen keys are binding (i.e. not hiding)
         assert_ne!(crs.g1_gen, G1Affine::zero());

@@ -34,7 +34,7 @@
 use ark_ec::pairing::{Pairing, PairingOutput};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Valid};
 
-use crate::data_structures::Matrix;
+use crate::algebra::Matrix;
 use crate::prover::Provable;
 use crate::verifier::Verifiable;
 
@@ -240,7 +240,7 @@ mod tests {
         let equ: PPE<F> = PPE::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine()],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: GT::rand(&mut rng),
         };
 
@@ -255,7 +255,7 @@ mod tests {
         let equ: PPE<F> = PPE::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine()],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: GT::rand(&mut rng),
         };
 
@@ -280,7 +280,7 @@ mod tests {
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -295,7 +295,7 @@ mod tests {
         let equ: MSMEG1<F> = MSMEG1::<F> {
             a_consts: vec![crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine()],
             b_consts: vec![Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: crs.g1_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -320,7 +320,7 @@ mod tests {
         let equ: MSMEG2<F> = MSMEG2::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine()],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -335,7 +335,7 @@ mod tests {
         let equ: MSMEG2<F> = MSMEG2::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine()],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: crs.g2_gen.mul(Fr::rand(&mut rng)).into_affine(),
         };
 
@@ -359,7 +359,7 @@ mod tests {
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: Fr::rand(&mut rng),
         };
 
@@ -373,7 +373,7 @@ mod tests {
         let equ: QuadEqu<F> = QuadEqu::<F> {
             a_consts: vec![Fr::rand(&mut rng)],
             b_consts: vec![Fr::rand(&mut rng)],
-            gamma: vec![vec![Fr::rand(&mut rng)]],
+            gamma: Matrix::new(&[[Fr::rand(&mut rng)]]),
             target: Fr::rand(&mut rng),
         };
 

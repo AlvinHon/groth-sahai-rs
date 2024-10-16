@@ -10,7 +10,7 @@ mod SXDH_commit_tests {
     use ark_std::ops::Mul;
     use ark_std::test_rng;
 
-    use groth_sahai::data_structures::*;
+    use groth_sahai::algebra::*;
     use groth_sahai::{AbstractCrs, CRS};
     //    use groth_sahai::commit::*;
 
@@ -42,10 +42,10 @@ mod SXDH_commit_tests {
         let a2 = Fr::rand(&mut rng);
         let at = a1.mul(a2).into_affine();
         let b1 = Com1::<F>::linear_map(&a1);
-        let b2 = Com2::<F>::scalar_linear_map(&a2, &key);
+        let b2 = key.v[1].scalar_linear_map(&a2, &key.g2_gen);
 
         let bt_lin_bilin = ComT::<F>::pairing(b1, b2);
-        let bt_bilin_lin = ComT::<F>::linear_map_MSMEG1(&at, &key);
+        let bt_bilin_lin = ComT::<F>::linear_map_MSMEG1(&at, &key.v[1], &key.g2_gen);
 
         assert_eq!(bt_lin_bilin, bt_bilin_lin);
     }
@@ -58,11 +58,11 @@ mod SXDH_commit_tests {
         let a1 = Fr::rand(&mut rng);
         let a2 = G2Projective::rand(&mut rng).into_affine();
         let at = a2.mul(a1).into_affine();
-        let b1 = Com1::<F>::scalar_linear_map(&a1, &key);
+        let b1 = key.u[1].scalar_linear_map(&a1, &key.g1_gen);
         let b2 = Com2::<F>::linear_map(&a2);
 
         let bt_lin_bilin = ComT::<F>::pairing(b1, b2);
-        let bt_bilin_lin = ComT::<F>::linear_map_MSMEG2(&at, &key);
+        let bt_bilin_lin = ComT::<F>::linear_map_MSMEG2(&at, &key.u[1], &key.g1_gen);
 
         assert_eq!(bt_lin_bilin, bt_bilin_lin);
     }
@@ -75,11 +75,12 @@ mod SXDH_commit_tests {
         let a1 = Fr::rand(&mut rng);
         let a2 = Fr::rand(&mut rng);
         let at = a1 * a2;
-        let b1 = Com1::<F>::scalar_linear_map(&a1, &key);
-        let b2 = Com2::<F>::scalar_linear_map(&a2, &key);
+        let b1 = key.u[1].scalar_linear_map(&a1, &key.g1_gen);
+        let b2 = key.v[1].scalar_linear_map(&a2, &key.g2_gen);
 
         let bt_lin_bilin = ComT::<F>::pairing(b1, b2);
-        let bt_bilin_lin = ComT::<F>::linear_map_quad(&at, &key);
+        let bt_bilin_lin =
+            ComT::<F>::linear_map_quad(&at, &key.u[1], &key.g1_gen, &key.v[1], &key.g2_gen);
 
         assert_eq!(bt_lin_bilin, bt_bilin_lin);
     }
