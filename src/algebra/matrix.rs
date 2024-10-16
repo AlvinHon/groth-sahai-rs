@@ -3,41 +3,36 @@ use std::fmt::Debug;
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Valid};
-use ndarray::{Array, Ix2};
+use ndarray::{Array, Axis, Ix2};
 
 use super::Com;
 
-// pub type Matrix<F> = Array<F, Ix2>;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Matrix<F> {
+pub struct Matrix<F>
+where
+    F: Clone,
+{
     inner: Array<F, Ix2>,
 }
 
-impl<F> Matrix<F> {
-    pub fn new<const N: usize>(xs: &[[F; N]]) -> Self
-    where
-        F: Clone,
-    {
+impl<F> Matrix<F>
+where
+    F: Clone,
+{
+    pub fn new<const N: usize>(xs: &[[F; N]]) -> Self {
         Self {
             inner: ndarray::arr2(xs),
         }
     }
 
-    pub fn to_vecs(&self) -> Vec<Vec<F>>
-    where
-        F: Clone,
-    {
+    pub fn to_vecs(&self) -> Vec<Vec<F>> {
         self.inner
             .outer_iter()
             .map(|row| row.iter().cloned().collect())
             .collect()
     }
 
-    pub fn from_vecs(vecs: Vec<Vec<F>>) -> Self
-    where
-        F: Clone,
-    {
+    pub fn from_vecs(vecs: Vec<Vec<F>>) -> Self {
         Self {
             inner: Array::from_shape_vec(
                 (vecs.len(), vecs[0].len()),
@@ -45,6 +40,11 @@ impl<F> Matrix<F> {
             )
             .unwrap(),
         }
+    }
+
+    #[inline]
+    pub fn append(&mut self, other: &Self) {
+        self.inner.append(Axis(0), other.inner.view()).unwrap();
     }
 
     #[inline]
@@ -75,7 +75,7 @@ where
 
 impl<F> Valid for Matrix<F>
 where
-    F: Valid,
+    F: Clone + Valid,
 {
     fn check(&self) -> Result<(), ark_serialize::SerializationError> {
         Ok(())
@@ -125,7 +125,7 @@ pub fn vec_to_col_vec<F: Clone>(vec: &[F]) -> Matrix<F> {
 }
 
 pub trait Mat<Elem: Clone>: Eq + Clone + Debug {
-    type Other;
+    type Other: Clone;
 
     fn add(&self, other: &Self) -> Self;
     fn neg(&self) -> Self;
