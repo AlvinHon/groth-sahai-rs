@@ -95,6 +95,7 @@ impl<E: Pairing> SubAssign<ComT<E>> for ComT<E> {
 }
 impl<E: Pairing> From<Matrix<PairingOutput<E>>> for ComT<E> {
     fn from(mat: Matrix<PairingOutput<E>>) -> Self {
+        let mat = mat.as_ref();
         Self(mat[(0, 0)], mat[(0, 1)], mat[(1, 0)], mat[(1, 1)])
     }
 }
@@ -139,19 +140,19 @@ impl<E: Pairing> ComT<E> {
     }
 
     pub fn as_matrix(&self) -> Matrix<PairingOutput<E>> {
-        ndarray::arr2(&[[self.0, self.1], [self.2, self.3]])
+        Matrix::<PairingOutput<E>>::from(ndarray::arr2(&[[self.0, self.1], [self.2, self.3]]))
     }
 
-    #[allow(non_snake_case)]
-    #[inline]
-    pub fn linear_map_PPE(z: &PairingOutput<E>) -> Self {
-        Self(
-            PairingOutput::zero(),
-            PairingOutput::zero(),
-            PairingOutput::zero(),
-            *z,
-        )
-    }
+    // #[allow(non_snake_case)]
+    // #[inline]
+    // pub fn linear_map_PPE(z: &PairingOutput<E>) -> Self {
+    //     Self(
+    //         PairingOutput::zero(),
+    //         PairingOutput::zero(),
+    //         PairingOutput::zero(),
+    //         *z,
+    //     )
+    // }
 
     // #[inline]
     // fn linear_map_MSMEG1(z: &E::G1Affine, key: &CRS<E>) -> Self {

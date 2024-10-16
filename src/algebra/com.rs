@@ -29,12 +29,22 @@ impl<G: CurveGroup> Add<Com<G>> for Com<G> {
         Self((self.0 + other.0).into(), (self.1 + other.1).into())
     }
 }
+impl<G: CurveGroup> Add<Com<G>> for &Com<G> {
+    type Output = Com<G>;
+
+    #[inline]
+    fn add(self, other: Com<G>) -> Com<G> {
+        Com::<G>((self.0 + other.0).into(), (self.1 + other.1).into())
+    }
+}
+
 impl<G: CurveGroup> AddAssign<Com<G>> for Com<G> {
     #[inline]
     fn add_assign(&mut self, other: Self) {
         *self = Self((self.0 + other.0).into(), (self.1 + other.1).into());
     }
 }
+
 impl<G: CurveGroup> Neg for Com<G> {
     type Output = Self;
 
@@ -102,6 +112,7 @@ impl<G: CurveGroup> UniformRand for Com<G> {
 
 impl<G: CurveGroup> From<Matrix<G::Affine>> for Com<G> {
     fn from(mat: Matrix<G::Affine>) -> Self {
+        let mat = mat.as_ref();
         Self(mat[(0, 0)], mat[(1, 0)])
     }
 }
@@ -112,7 +123,7 @@ impl<G: CurveGroup> Com<G> {
     }
 
     pub fn as_col_vec(&self) -> Matrix<G::Affine> {
-        ndarray::arr2(&[[self.0], [self.1]])
+        Matrix::<G::Affine>::from(ndarray::arr2(&[[self.0], [self.1]]))
     }
 
     pub fn as_vec(&self) -> Vec<G::Affine> {
@@ -130,29 +141,27 @@ impl<G: CurveGroup> Com<G> {
     }
 
     /// Compute a commitment group element:
-    /// - = xu, where u = u_2 + (O, P) for G1
-    /// - = yv, where v = v_2 + (O, P) for G2
+    /// = xq, where q = self + (O, P)
     #[inline]
     pub fn scalar_linear_map(
+        &self,
         x: &<G::Affine as AffineRepr>::ScalarField,
-        uv: Self,
         p: &G::Affine,
     ) -> Self {
-        (uv + Self::linear_map(p)).scalar_mul(x)
+        (self + Self::linear_map(p)).scalar_mul(x)
     }
 
     /// Compute a vector of commitment group elements:
-    /// - = xu, where u = u_2 + (O, P) for G1
-    /// - = yv, where v = v_2 + (O, P) for G2
+    /// - = xq, where q = self + (O, P)
     #[inline]
     pub fn batch_scalar_linear_map(
+        &self,
         x_vec: &[<G::Affine as AffineRepr>::ScalarField],
-        uv: Self,
         p: &G::Affine,
     ) -> Vec<Self> {
         x_vec
             .iter()
-            .map(|elem| Self::scalar_linear_map(elem, uv, p))
+            .map(|elem| self.scalar_linear_map(elem, p))
             .collect::<Vec<Self>>()
     }
 

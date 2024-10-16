@@ -531,32 +531,32 @@ mod tests {
         let bt = ComT::<F>::pairing(b1, b2);
 
         // B1 and B2 can be representing as 2-dim column vectors
-        assert_eq!(b1.as_col_vec(), ndarray::arr2(&[[b1.0], [b1.1]]));
-        assert_eq!(b2.as_col_vec(), ndarray::arr2(&[[b2.0], [b2.1]]));
+        assert_eq!(b1.as_col_vec(), Matrix::new(&[[b1.0], [b1.1]]));
+        assert_eq!(b2.as_col_vec(), Matrix::new(&[[b2.0], [b2.1]]));
         // BT can be represented as a 2 x 2 matrix
-        assert_eq!(bt.as_matrix(), ndarray::arr2(&[[bt.0, bt.1], [bt.2, bt.3]]));
+        assert_eq!(bt.as_matrix(), Matrix::new(&[[bt.0, bt.1], [bt.2, bt.3]]));
     }
 
     #[test]
     fn test_B_from_matrix() {
         let mut rng = test_rng();
-        let b1_vec = ndarray::arr2(&[
+        let b1_vec = Matrix::new(&[
             [G1::rand(&mut rng).into_affine()],
             [G1::rand(&mut rng).into_affine()],
         ]);
 
-        let b2_vec = ndarray::arr2(&[
+        let b2_vec = Matrix::new(&[
             [G2::rand(&mut rng).into_affine()],
             [G2::rand(&mut rng).into_affine()],
         ]);
-        let bt_vec = ndarray::arr2(&[
+        let bt_vec = Matrix::new(&[
             [
-                F::pairing(b1_vec[(0, 0)], b2_vec[(0, 0)]),
-                F::pairing(b1_vec[(0, 0)], b2_vec[(1, 0)]),
+                F::pairing(b1_vec.as_ref()[(0, 0)], b2_vec.as_ref()[(0, 0)]),
+                F::pairing(b1_vec.as_ref()[(0, 0)], b2_vec.as_ref()[(1, 0)]),
             ],
             [
-                F::pairing(b1_vec[(1, 0)], b2_vec[(0, 0)]),
-                F::pairing(b1_vec[(1, 0)], b2_vec[(1, 0)]),
+                F::pairing(b1_vec.as_ref()[(1, 0)], b2_vec.as_ref()[(0, 0)]),
+                F::pairing(b1_vec.as_ref()[(1, 0)], b2_vec.as_ref()[(1, 0)]),
             ],
         ]);
 
@@ -564,14 +564,14 @@ mod tests {
         let b2 = Com::<G2>::from(b2_vec.clone());
         let bt = ComT::<F>::from(bt_vec.clone());
 
-        assert_eq!(b1.0, b1_vec[(0, 0)]);
-        assert_eq!(b1.1, b1_vec[(1, 0)]);
-        assert_eq!(b2.0, b2_vec[(0, 0)]);
-        assert_eq!(b2.1, b2_vec[(1, 0)]);
-        assert_eq!(bt.0, bt_vec[(0, 0)]);
-        assert_eq!(bt.1, bt_vec[(0, 1)]);
-        assert_eq!(bt.2, bt_vec[(1, 0)]);
-        assert_eq!(bt.3, bt_vec[(1, 1)]);
+        assert_eq!(b1.0, b1_vec.as_ref()[(0, 0)]);
+        assert_eq!(b1.1, b1_vec.as_ref()[(1, 0)]);
+        assert_eq!(b2.0, b2_vec.as_ref()[(0, 0)]);
+        assert_eq!(b2.1, b2_vec.as_ref()[(1, 0)]);
+        assert_eq!(bt.0, bt_vec.as_ref()[(0, 0)]);
+        assert_eq!(bt.1, bt_vec.as_ref()[(0, 1)]);
+        assert_eq!(bt.2, bt_vec.as_ref()[(1, 0)]);
+        assert_eq!(bt.3, bt_vec.as_ref()[(1, 1)]);
     }
 
     #[test]
